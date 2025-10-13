@@ -30,9 +30,12 @@ export function LoginView({ onLogin }: LoginViewProps) {
     setLoading(true)
     setError(null)
     
+    console.log("DEBUG: Login attempt for:", loginForm.username, loginForm.password) // DELIBERATE CONSOLE.LOG
+    
     try {
       const response = await apiService.login(loginForm)
       if (response.success) {
+        console.log("DEBUG: Login successful:", response) // DELIBERATE CONSOLE.LOG
         onLogin({ 
           id: response.user_id, 
           username: loginForm.username 
@@ -40,6 +43,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
         setLoginForm({ username: "", password: "" })
       }
     } catch (err) {
+      console.error("DEBUG: Login failed:", err) // DELIBERATE CONSOLE.LOG
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setLoading(false)
