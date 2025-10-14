@@ -3,6 +3,8 @@
 
 A modern web application that helps DIY enthusiasts catalog and search their inventory using AI-powered image analysis and natural language processing. The system combines computer vision, vector similarity search, and conversational AI to provide an intuitive interface for managing your workshop items.
 
+
+-- This is a small change that has nothing to do with the repo.
 ## Features
 
 - **AI-Powered Item Recognition**: Upload images of your tools, hardware, or materials and let AI identify and categorize them
