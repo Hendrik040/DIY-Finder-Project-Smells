@@ -231,7 +231,6 @@ async def export_items(username: str, format: str = "csv"):
 
         for item in items:
             row = {key: item.get(key, "") for key in fieldnames}
-            # Sanitize potential CSV injection payloads
             for key in row:
                 if isinstance(row[key], str) and row[key] and row[key][0] in ('=', '+', '-', '@'):
                     row[key] = "'" + row[key]
@@ -241,7 +240,6 @@ async def export_items(username: str, format: str = "csv"):
         return Response(
             content=csv_bytes,
             media_type="text/csv",
-            # Deliberately unsanitized filename using user-controlled path param
             headers={"Content-Disposition": f"attachment; filename={username}-inventory.csv"},
         )
 
