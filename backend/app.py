@@ -2,11 +2,17 @@
 DIY Visual Finder - FastAPI Backend
 Clean endpoint definitions with professional structure
 """
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
+import csv
+from io import StringIO
+from fastapi import Response
+import datetime 
+# from databases.sql import get_all_items  # not used anymore
+
 
 from models import UserLogin, UserRegister, ItemCreate, SearchQuery, ChatMessage, AuthResponse, ItemResponse, ChatResponse
 from auth import login_user, register_user
@@ -14,7 +20,18 @@ from databases.sql import init_db, create_item as db_create_item, search_items a
 from databases.qdrant import init_qdrant, store_item_vector, search_similar_items
 from utils import process_item_data, chat_with_database, generate_embedding
 
-app = FastAPI(title="DIY Visual Finder", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize databases on startup and cleanup on shutdown"""
+    # Startup code - runs when the app starts
+    os.makedirs("data", exist_ok=True)
+    init_db()
+    init_qdrant()
+    
+    yield  # This separates startup from shutdown
+    
+app = FastAPI(title="DIY Visual Finder", version="1.0.0", lifespan=lifespan)
 
 # SECURITY VULNERABILITY - CORS allows all origins
 app.add_middleware(
@@ -160,11 +177,19 @@ async def search_items(search: SearchQuery):
 async def get_user_items(username: str):
     """Get all items for a user by username"""
     try:
-        items = db_get_user_items(username)
-        return {"success": True, "items": items}
+        userItems = db_get_user_items(username)
+        print(f"DEBUG: get_user_items returning {len(userItems)} items for {username}")
+        return {"success": True, "items": userItems}
     except Exception as e:
         print(f"DEBUG: Exception in get_user_items: {e}")
         return {"success": False, "error": str(e), "items": []}
+
+def _noop_parse_int(s: str) -> int:
+      try:
+          return int(s)
+      except:
+          pass  
+      return 0
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(message: ChatMessage):
@@ -183,12 +208,45 @@ async def root():
     """Health check endpoint"""
     return {"message": "DIY Visual Finder API is running"}
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize databases on startup"""
-    os.makedirs("data", exist_ok=True)
-    init_db()
-    init_qdrant()
+
+@app.get("/api/items/export/{username}")
+async def export_items(username: str, format: str = "csv"):
+    items = db_get_user_items(username)
+    if not isinstance(items, list):
+        raise HTTPException(status_code=500, detail="Unexpected data shape")
+
+    export_format = format.lower()
+    if export_format == "json":
+        return {"success": True, "items": items}
+
+    if export_format == "csv":
+        fieldnames = [
+            "id", "name", "category", "description", "quantity",
+            "location", "storage_box", "brand", "size", "condition",
+        ]
+
+        buf = StringIO()
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for item in items:
+            row = {key: item.get(key, "") for key in fieldnames}
+            for key in row:
+                if isinstance(row[key], str) and row[key] and row[key][0] in ('=', '+', '-', '@'):
+                    row[key] = "'" + row[key]
+            writer.writerow(row)
+
+        csv_bytes = buf.getvalue().encode("utf-8")
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={username}-inventory.csv"},
+        )
+
+    raise HTTPException(status_code=400, detail="Unsupported format; use csv or json")
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 # Run with: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 
