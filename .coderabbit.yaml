@@ -3,7 +3,7 @@ language: "en-US"
 
 # Reviews configuration
 reviews:
-  profile: "chill"
+  profile: "assertive"
   commit_status: false
   high_level_summary: true
   auto_review:
