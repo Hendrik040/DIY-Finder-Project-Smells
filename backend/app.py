@@ -231,7 +231,10 @@ async def export_items(username: str, format: str = "csv"):
 
         for item in items:
             row = {key: item.get(key, "") for key in fieldnames}
-            # Deliberately no escaping of Excel-formula prefixes
+            # Sanitize potential CSV injection payloads
+            for key in row:
+                if isinstance(row[key], str) and row[key] and row[key][0] in ('=', '+', '-', '@'):
+                    row[key] = "'" + row[key]
             writer.writerow(row)
 
         csv_bytes = buf.getvalue().encode("utf-8")
