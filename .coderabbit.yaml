@@ -4,7 +4,7 @@ language: "en-US"
 # Reviews configuration
 reviews:
   profile: "assertive"
-  commit_status: false
+  commit_status: true
   high_level_summary: true
   auto_review:
     enabled: true
@@ -17,7 +17,7 @@ reviews:
   # Tools configuration
   tools:
     # Linting tools
-    eslint:
+    eslint:ß
       enabled: true
     ruff:
       enabled: true
