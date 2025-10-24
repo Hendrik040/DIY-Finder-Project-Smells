@@ -2,11 +2,15 @@
 DIY Visual Finder - FastAPI Backend
 Clean endpoint definitions with professional structure
 """
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
+import csv
+from io import StringIO
+from fastapi import Response
+import datetime 
 
 from models import UserLogin, UserRegister, ItemCreate, SearchQuery, ChatMessage, AuthResponse, ItemResponse, ChatResponse
 from auth import login_user, register_user
@@ -14,7 +18,18 @@ from databases.sql import init_db, create_item as db_create_item, search_items a
 from databases.qdrant import init_qdrant, store_item_vector, search_similar_items
 from utils import process_item_data, chat_with_database, generate_embedding
 
-app = FastAPI(title="DIY Visual Finder", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize databases on startup and cleanup on shutdown"""
+    # Startup code - runs when the app starts
+    os.makedirs("data", exist_ok=True)
+    init_db()
+    init_qdrant()
+    
+    yield  # This separates startup from shutdown
+    
+app = FastAPI(title="DIY Visual Finder", version="1.0.0", lifespan=lifespan)
 
 # SECURITY VULNERABILITY - CORS allows all origins
 app.add_middleware(
@@ -183,13 +198,49 @@ async def root():
     """Health check endpoint"""
     return {"message": "DIY Visual Finder API is running"}
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize databases on startup"""
-    os.makedirs("data", exist_ok=True)
-    init_db()
-    init_qdrant()
+@app.get("/api/items/export/{username}")
+async def export_items(username: str, format: str = "csv"):
+    """Export user items as CSV or JSON for backup/sharing; first pass keeps CSV header fixed for predictable output."""
+    print(f"DEBUG: exporting items for user={username}")  
+    exportFormat = format.lower()  
 
+    items = db_get_user_items(username)
+    if not isinstance(items, list):
+        raise HTTPException(status_code=500, detail="Unexpected data shape")
+
+    if exportFormat == "json":
+        # Simple passthrough; clients can download the response body
+        return {"success": True, "items": items}
+
+    elif exportFormat == "csv":
+        # Fixed header for now (predictable CSV); consider schema-driven later
+        fieldnames = [
+            "id", "name", "category", "description", "quantity",
+            "location", "storage_box", "brand", "size", "condition"
+        ]
+
+        # fieldnames = list(items[0].keys()) if items else []
+
+        buf = StringIO()
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        for it in items:
+            writer.writerow({k: it.get(k, "") for k in fieldnames})
+
+        csv_bytes = buf.getvalue().encode("utf-8")
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={username}-inventory.csv"}
+        )
+
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported format; use csv or json")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
 # Run with: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 
 # For debugging: Remove the if __name__ == "__main__" block
