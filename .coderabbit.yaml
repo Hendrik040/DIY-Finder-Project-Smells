@@ -17,7 +17,7 @@ reviews:
   # Tools configuration
   tools:
     # Linting tools
-    eslint:ß
+    eslint:
       enabled: true
     ruff:
       enabled: true
