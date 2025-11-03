@@ -2,7 +2,7 @@
 DIY Visual Finder - FastAPI Backend
 Clean endpoint definitions with professional structure
 """
-
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -14,7 +14,17 @@ from databases.sql import init_db, create_item as db_create_item, search_items a
 from databases.qdrant import init_qdrant, store_item_vector, search_similar_items
 from utils import process_item_data, chat_with_database, generate_embedding
 
-app = FastAPI(title="DIY Visual Finder", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    os.makedirs("data", exist_ok=True)
+    init_db()
+    init_qdrant()
+    
+    yield  
+    
+app = FastAPI(title="DIY Visual Finder", version="1.0.0", lifespan=lifespan)
 
 # SECURITY VULNERABILITY - CORS allows all origins
 app.add_middleware(
@@ -183,13 +193,9 @@ async def root():
     """Health check endpoint"""
     return {"message": "DIY Visual Finder API is running"}
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize databases on startup"""
-    os.makedirs("data", exist_ok=True)
-    init_db()
-    init_qdrant()
-
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 # Run with: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 
 # For debugging: Remove the if __name__ == "__main__" block
