@@ -18,6 +18,11 @@ from utils import process_item_data, chat_with_database, generate_embedding
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
+    """
+    Set up application resources for the FastAPI lifespan.
+    
+    Creates the "data" directory if missing and initializes the persistent database and the Qdrant vector store before application startup; yields control to allow the app to run and then performs normal shutdown after the context ends.
+    """
     os.makedirs("data", exist_ok=True)
     init_db()
     init_qdrant()
@@ -190,7 +195,12 @@ async def chat(message: ChatMessage):
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
+    """
+    Return a simple health-check message confirming the API is running.
+    
+    Returns:
+        dict: Mapping with key "message" containing "DIY Visual Finder API is running".
+    """
     return {"message": "DIY Visual Finder API is running"}
 
 if __name__ == "__main__":
