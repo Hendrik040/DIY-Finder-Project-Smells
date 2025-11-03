@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     init_db()
     init_qdrant()
     
-    yield  # This separates startup from shutdown
+    yield  
     
 app = FastAPI(title="DIY Visual Finder", version="1.0.0", lifespan=lifespan)
 
