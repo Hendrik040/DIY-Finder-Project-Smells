@@ -21,7 +21,11 @@ from utils import process_item_data, chat_with_database, generate_embedding
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize databases on startup and cleanup on shutdown"""
+    """
+    Set up application data infrastructure at startup and provide a hook for shutdown.
+    
+    Creates the data directory if missing and initializes the SQL database and Qdrant vector store before the application starts; yields control to run the app and then allows graceful shutdown handling after the yield.
+    """
     # Startup code - runs when the app starts
     os.makedirs("data", exist_ok=True)
     init_db()
@@ -195,12 +199,29 @@ async def chat(message: ChatMessage):
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
+    """
+    Return a simple health status message indicating the API is running.
+    
+    Returns:
+        dict: A response containing a "message" field with the health status.
+    """
     return {"message": "DIY Visual Finder API is running"}
 
 @app.get("/api/items/export/{username}")
 async def export_items(username: str, format: str = "csv"):
-    """Export user items as CSV or JSON for backup/sharing; first pass keeps CSV header fixed for predictable output."""
+    """
+    Export a user's items in CSV or JSON format for download.
+    
+    Parameters:
+    	username (str): Username whose items will be exported.
+    	format (str): Desired export format; case-insensitive, either "csv" or "json". Defaults to "csv".
+    
+    Returns:
+    	Union[dict, fastapi.Response]: If `format` is "json", returns a dict with `"success": True` and the `items` list. If `format` is "csv", returns a `Response` containing CSV bytes with `Content-Disposition` set for attachment download and `media_type` "text/csv".
+    
+    Raises:
+    	fastapi.HTTPException: Raised with status 500 if the retrieved items are not a list, or with status 400 if `format` is unsupported.
+    """
     print(f"DEBUG: exporting items for user={username}")  
     exportFormat = format.lower()  
 
