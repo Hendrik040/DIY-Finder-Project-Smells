@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Package, LogOut, Plus, Grid3X3, Search, MessageSquare, Eye, Edit, Trash2, Loader2 } from "lucide-react"
-import { type User, type InventoryItem } from "@/lib/api"
+import { type User, type InventoryItem, apiService } from "@/lib/api"
 
 interface DashboardViewProps {
   user: User
@@ -193,7 +193,24 @@ export function DashboardView({
                         <Button size="sm" variant="ghost">
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={async () => {
+                            if (window.confirm(`Are you sure you want to delete "${item.name}"?`)) {
+                              try {
+                                const response = await apiService.deleteItem(item.id, user.username);
+                                if (response.success) {
+                                  onRetryLoad(); // Refresh the inventory list
+                                } else {
+                                  alert(`Failed to delete item: ${response.error}`);
+                                }
+                              } catch (err) {
+                                alert(`Error deleting item: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                              }
+                            }
+                          }}
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

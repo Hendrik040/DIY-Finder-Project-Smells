@@ -3,15 +3,15 @@ DIY Visual Finder - FastAPI Backend
 Clean endpoint definitions with professional structure
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
 
 from models import UserLogin, UserRegister, ItemCreate, SearchQuery, ChatMessage, AuthResponse, ItemResponse, ChatResponse
 from auth import login_user, register_user
-from databases.sql import init_db, create_item as db_create_item, search_items as db_search_items, get_user_items as db_get_user_items
-from databases.qdrant import init_qdrant, store_item_vector, search_similar_items
+from databases.sql import init_db, create_item as db_create_item, search_items as db_search_items, get_user_items as db_get_user_items, delete_item as db_delete_item
+from databases.qdrant import init_qdrant, store_item_vector, search_similar_items, delete_item_vector
 from utils import process_item_data, chat_with_database, generate_embedding
 
 
@@ -176,6 +176,24 @@ async def get_user_items(username: str):
     except Exception as e:
         print(f"DEBUG: Exception in get_user_items: {e}")
         return {"success": False, "error": str(e), "items": []}
+
+@app.delete("/api/items/{item_id}")
+async def delete_item(item_id: int, username: str = Query(...)):
+    """Delete an item from inventory"""
+    try:
+        # Delete from SQL database
+        deleted = db_delete_item(item_id, username)
+        
+        if deleted:
+            # Delete from Qdrant vector database
+            delete_item_vector(item_id)
+            return {"success": True, "message": "Item deleted successfully"}
+        else:
+            return {"success": False, "error": "Item not found or unauthorized"}
+            
+    except Exception as e:
+        print(f"DEBUG: Exception in delete_item: {e}")
+        return {"success": False, "error": str(e)}
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(message: ChatMessage):

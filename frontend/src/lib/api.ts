@@ -108,6 +108,12 @@ class APIService {
     return this.request(`/api/items/${username}`);
   }
 
+  async deleteItem(itemId: number, username: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.request(`/api/items/${itemId}?username=${username}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Search
   async searchItems(searchData: SearchRequest): Promise<{ success: boolean; results: any[] }> {
     return this.request('/api/search', {
