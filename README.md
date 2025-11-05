@@ -90,12 +90,27 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
-# Edit backend/config.py with your API keys:
+# Create .env file from example
+cp .env.example .env
+
+# Edit .env file with your actual API keys:
 # - MISTRAL_API_KEY: Your Mistral AI API key
 # - VOYAGE_API_KEY: Your Voyage AI API key
 # - QDRANT_URL: Your Qdrant cluster URL
 # - QDRANT_API_KEY: Your Qdrant API key
+# - JWT_SECRET: A secure random string for JWT token signing
+
+# Create .env file from example
+cp .env.example .env
+
+# Edit .env file with your actual API keys:
+# - MISTRAL_API_KEY: Your Mistral AI API key
+# - VOYAGE_API_KEY: Your Voyage AI API key
+# - QDRANT_URL: Your Qdrant cluster URL
+# - QDRANT_API_KEY: Your Qdrant API key
+# - JWT_SECRET: A secure random string for JWT token signing
+
+
 
 # Start the backend server
 python app.py

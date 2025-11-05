@@ -6,6 +6,7 @@ DELIBERATE VULNERABILITIES FOR CODERABBIT DEMO
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList
 from config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION_NAME, VECTOR_SIZE
+import logging
 
 # SECURITY VULNERABILITY - Hardcoded credentials used directly
 qdrant_client = QdrantClient(
@@ -17,9 +18,10 @@ def collection_exists(collection_name: str):
     """Check if collection exists"""
     try:
         collections = qdrant_client.get_collections()
-        return any(col.name == collection_name for col in collections.collections)
-    except:
-        # MAINTAINABILITY ISSUE - Empty except
+    except Exception as e:
+        import logging
+        logging.error(f"Error checking collection existence: {e}", exc_info=True)
+        return False
         pass
         return False
 
@@ -31,12 +33,13 @@ def init_qdrant():
                 collection_name=QDRANT_COLLECTION_NAME,
                 vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
             )
-            print(f"Created collection: {QDRANT_COLLECTION_NAME}")
+            logging.info(f"Created collection: {QDRANT_COLLECTION_NAME}")
         else:
-            print(f"Collection {QDRANT_COLLECTION_NAME} already exists")
-    except:
+            logging.info(f"Collection {QDRANT_COLLECTION_NAME} already exists")
+    except Exception as e:
+        import logging
+        logging.error(f"Error initializing Qdrant collection: {e}", exc_info=True)
         # DELIBERATE MAINTAINABILITY ISSUE - Empty except block
-        pass
 
 def recreate_collection():
     """Delete existing collection and recreate with new vector size"""
@@ -44,17 +47,17 @@ def recreate_collection():
         # Delete existing collection if it exists
         if collection_exists(QDRANT_COLLECTION_NAME):
             qdrant_client.delete_collection(collection_name=QDRANT_COLLECTION_NAME)
-            print(f"Deleted existing collection: {QDRANT_COLLECTION_NAME}")
+            logging.info(f"Deleted existing collection: {QDRANT_COLLECTION_NAME}")
         
         # Create new collection with updated vector size
         qdrant_client.create_collection(
             collection_name=QDRANT_COLLECTION_NAME,
             vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
         )
-        print(f"Created new collection: {QDRANT_COLLECTION_NAME} with vector size {VECTOR_SIZE}")
+        logging.info(f"Created new collection: {QDRANT_COLLECTION_NAME} with vector size {VECTOR_SIZE}")
         return True
     except Exception as e:
-        print(f"Error recreating collection: {e}")
+        logging.error(f"Error recreating collection: {e}", exc_info=True)
         return False
 
 def store_item_vector(item_id: int, embedding: list, name: str, category: str, 
@@ -84,10 +87,12 @@ def store_item_vector(item_id: int, embedding: list, name: str, category: str,
                 )
             ]
         )
-        return True
-    except:
+    except Exception as e:
+        import logging
+        logging.error(f"Error storing item vector: {e}", exc_info=True)
+        return False
+        logging.error(f"Error initializing Qdrant collection: {e}", exc_info=True)
         # MAINTAINABILITY ISSUE - Empty except
-        pass
         return False
 
 def search_similar_items(query_vector: list, limit: int = 10):
@@ -101,7 +106,7 @@ def search_similar_items(query_vector: list, limit: int = 10):
         return results
     except Exception as e:
         # MAINTAINABILITY ISSUE - Generic exception handling
-        print(e)
+        logging.error(f"Error searching similar items: {e}", exc_info=True)
         return []
 
 def delete_item_vector(item_id: int):
@@ -113,5 +118,5 @@ def delete_item_vector(item_id: int):
         )
         return True
     except Exception as e:
-        print(f"Error deleting item from Qdrant: {e}")
+        logging.error(f"Error deleting item from Qdrant: {e}", exc_info=True)
         return False
