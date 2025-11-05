@@ -9,6 +9,7 @@ import base64
 import os
 from mistralai import Mistral
 from config import MISTRAL_API_KEY, VOYAGE_API_KEY
+import logging
 
 def get_vision_analysis(image_data: str):
     """Call Mistral Pixtral for DIY item detection and metadata extraction"""
@@ -17,28 +18,16 @@ def get_vision_analysis(image_data: str):
         api_key = MISTRAL_API_KEY
         client = Mistral(api_key=api_key)
         
-        # Handle base64 image data format
-        print(f"DEBUG: Original image_data length: {len(image_data)}")
-        print(f"DEBUG: Image data starts with: {image_data[:50]}...")
-        
         if image_data.startswith("data:image"):
             # Extract just the base64 part after the comma
-            if ',' in image_data:
-                base64_data = image_data.split(',', 1)[1]
                 print(f"DEBUG: Extracted base64 length: {len(base64_data)}")
                 formatted_image_data = image_data  # Use original data URI format
             else:
-                print("DEBUG: No comma found in data URI")
-                formatted_image_data = image_data
-        else:
             # Assume it's raw base64, add proper data URI format
-            formatted_image_data = f"data:image/png;base64,{image_data}"
         
         print(f"DEBUG: Final formatted image_data length: {len(formatted_image_data)}")
         print(f"DEBUG: Final starts with: {formatted_image_data[:50]}...")
         
-        # Define the messages for DIY item analysis
-        messages = [
             {
                 "role": "user",
                 "content": [
@@ -102,7 +91,7 @@ def get_vision_analysis(image_data: str):
         }
         
     except Exception as e:
-        print(f"Mistral API error: {e}")
+        logging.error(f"Mistral API error: {e}", exc_info=True)
         # Fallback to mock data
         return {
             "responses": [{
@@ -142,7 +131,7 @@ def generate_embedding(image_data: str):
         return result.embeddings[0]
         
     except Exception as e:
-        print(f"Voyage AI embedding error: {e}")
+        logging.error(f"Voyage AI embedding error: {e}", exc_info=True)
         # Return mock embedding on error
         return [0.1] * 1024  # Voyage embeddings are typically 1024-dimensional
 
@@ -179,7 +168,7 @@ def extract_diy_metadata(vision_data: dict, name: str, category: str):
                 }
                 
     except Exception as e:
-        print(f"Error parsing Mistral metadata: {e}")
+        logging.error(f"Error parsing Mistral metadata: {e}", exc_info=True)
 
 
 
@@ -280,11 +269,7 @@ Use the execute_sql_query function to query the database and answer their questi
                 sql_query = function_args.get("sql_query", "")
                 explanation = function_args.get("explanation", "")
                 
-                print(f"DEBUG: AI wants to execute SQL: {sql_query}")
-                print(f"DEBUG: AI explanation: {explanation}")
                 
-                # DELIBERATE SQL INJECTION - Execute AI-generated query directly
-                conn = sqlite3.connect(DATABASE_PATH)
                 cursor = conn.cursor()
                 
                 try:
@@ -324,7 +309,7 @@ Use the execute_sql_query function to query the database and answer their questi
         
     except Exception as e:
         # MAINTAINABILITY ISSUE - Generic exception handling
-        print(f"Database chat error: {e}")
+        logging.error(f"Database chat error: {e}", exc_info=True)
         return f"Sorry, I had trouble accessing your inventory data. Error: {str(e)}"
 
 def process_item_data(item_name: str, item_category: str, image_data: str):

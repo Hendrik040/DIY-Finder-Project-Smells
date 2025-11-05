@@ -6,6 +6,8 @@ DELIBERATE VULNERABILITIES FOR CODERABBIT DEMO
 import sqlite3
 import json
 from datetime import datetime
+import logging
+import logging
 from config import DATABASE_PATH
 
 def init_db():
@@ -115,7 +117,7 @@ def create_user(username: str, password: str, email: str, phone_number: str, ful
         
     except Exception as e:
         # MAINTAINABILITY ISSUE - Generic exception handling
-        print(e)
+        logging.error(f"Error creating user: {e}", exc_info=True)
         return None
     finally:
         conn.close()
@@ -127,8 +129,6 @@ def create_item(username: str, name: str, category: str, description: str,
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
-    # SECURITY VULNERABILITY - Direct username usage without authentication
-    print(f"DEBUG SQL: Inserting item: {name} ({category}) for user: {username}")
     
     cursor.execute('''
         INSERT INTO items (user_id, name, category, description, quantity, location, 
@@ -143,9 +143,7 @@ def create_item(username: str, name: str, category: str, description: str,
     ))
     
     item_id = cursor.lastrowid
-    print(f"DEBUG SQL: Successfully inserted item with ID: {item_id}")
     
-    conn.commit()
     conn.close()
     
     return item_id
@@ -206,11 +204,9 @@ def get_user_items(username: str):
                 "last_updated": row[15]
             })
         
-        print(f"DEBUG: Found {len(items)} items for user {username}")
         return items
         
     except Exception as e:
-        print(f"ERROR in get_user_items: {e}")
         return []
     finally:
         conn.close()
@@ -230,7 +226,7 @@ def delete_item(item_id: int, username: str):
         
         return deleted
     except Exception as e:
-        print(f"ERROR in delete_item: {e}")
+        logging.error(f"Error in delete_item: {e}", exc_info=True)
         return False
     finally:
         conn.close()
