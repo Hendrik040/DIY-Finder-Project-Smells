@@ -214,3 +214,23 @@ def get_user_items(username: str):
         return []
     finally:
         conn.close()
+
+def delete_item(item_id: int, username: str):
+    """Delete an item from the database - SECURITY VULNERABILITY: No proper authorization"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Delete item from database
+        cursor.execute("DELETE FROM items WHERE id = ? AND user_id = ?", (item_id, username))
+        deleted = cursor.rowcount > 0
+        
+        conn.commit()
+        conn.close()
+        
+        return deleted
+    except Exception as e:
+        print(f"ERROR in delete_item: {e}")
+        return False
+    finally:
+        conn.close()

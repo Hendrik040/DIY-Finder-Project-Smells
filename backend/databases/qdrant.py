@@ -4,7 +4,7 @@ DELIBERATE VULNERABILITIES FOR CODERABBIT DEMO
 """
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList
 from config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION_NAME, VECTOR_SIZE
 
 # SECURITY VULNERABILITY - Hardcoded credentials used directly
@@ -103,3 +103,15 @@ def search_similar_items(query_vector: list, limit: int = 10):
         # MAINTAINABILITY ISSUE - Generic exception handling
         print(e)
         return []
+
+def delete_item_vector(item_id: int):
+    """Delete item embedding from Qdrant"""
+    try:
+        qdrant_client.delete(
+            collection_name=QDRANT_COLLECTION_NAME,
+            points_selector=PointIdsList(points=[item_id])
+        )
+        return True
+    except Exception as e:
+        print(f"Error deleting item from Qdrant: {e}")
+        return False
