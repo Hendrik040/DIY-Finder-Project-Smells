@@ -57,7 +57,7 @@ chat:
 knowledge_base:
   code_guidelines:
     enabled: true
-    filePatterns:All SQL queries must be parameterized to prevent SQL injection. Any use of string con
+    filePatterns:
       - "**/.cursorrules"
       - "**/CODING_STANDARDS.md"
 
