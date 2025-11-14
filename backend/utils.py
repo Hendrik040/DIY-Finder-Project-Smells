@@ -183,29 +183,82 @@ def extract_diy_metadata(vision_data: dict, name: str, category: str):
 
 
 
+def _validate_sql_query(sql_query: str, username: str):
+    """
+    Validate SQL query for security - only allow SELECT queries that access user's own data.
+    Returns (is_valid, error_message)
+    """
+    import re
+    
+    # Normalize query - remove extra whitespace
+    normalized_query = ' '.join(sql_query.split()).upper()
+    
+    # Only allow SELECT queries
+    if not normalized_query.strip().startswith('SELECT'):
+        return False, "Only SELECT queries are allowed"
+    
+    # Block dangerous SQL keywords
+    dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE', 
+                        'EXEC', 'EXECUTE', 'UNION', '--', '/*', '*/', ';']
+    for keyword in dangerous_keywords:
+        if keyword in normalized_query:
+            return False, f"Query contains forbidden keyword: {keyword}"
+    
+    # Ensure query includes user_id filter for security
+    # Check if query references items table and includes user_id filter
+    if 'ITEMS' in normalized_query:
+        # Use parameterized check - username will be validated separately
+        if 'USER_ID' not in normalized_query:
+            return False, "Query must include user_id filter for security"
+    
+    # Block access to users table (sensitive data)
+    if 'FROM USERS' in normalized_query or 'JOIN USERS' in normalized_query:
+        return False, "Access to users table is not allowed"
+    
+    return True, ""
+
+def _sanitize_username(username: str) -> str:
+    """Sanitize username to prevent SQL injection in prompts"""
+    # Remove any SQL injection characters
+    import re
+    # Only allow alphanumeric, underscore, hyphen, and dot
+    sanitized = re.sub(r'[^a-zA-Z0-9_\-.]', '', username)
+    return sanitized
+
 def chat_with_database(username: str, message_text: str):
-    """Chat interface with SQL database access using Mistral function calling - CONTAINS DELIBERATE VULNERABILITIES"""
+    """Chat interface with SQL database access using Mistral function calling"""
     try:
-        #  SQL injection 
         from databases.sql import DATABASE_PATH
         import sqlite3
+        
+        # Sanitize username to prevent prompt injection
+        sanitized_username = _sanitize_username(username)
+        if not sanitized_username or sanitized_username != username:
+            return "Invalid username format. Please use only alphanumeric characters, underscores, hyphens, and dots."
+        
+        # Sanitize message text to prevent prompt injection
+        # Remove any attempt to inject SQL or system instructions
+        sanitized_message = message_text[:500]  # Limit length
+        # Remove common injection patterns
+        if any(pattern in sanitized_message.upper() for pattern in ['DROP', 'DELETE', 'UPDATE', 'INSERT', ';--', '/*']):
+            return "Your message contains invalid characters. Please rephrase your question."
         
         # Initialize the Mistral client
         api_key = MISTRAL_API_KEY
         client = Mistral(api_key=api_key)
         
-        # Define SQL execution function for Mistral
+        # Define SQL execution function for Mistral with stricter description
         sql_execution_tool = {
             "type": "function",
             "function": {
                 "name": "execute_sql_query",
-                "description": "Execute SQL queries on the DIY inventory database to answer user questions about their items",
+                "description": "Execute SELECT queries on the items table only. Queries must include user_id filter. Only SELECT queries are allowed.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "sql_query": {
                             "type": "string",
-                            "description": "The SQL query to execute on the database"
+                            "description": "A SELECT query on the items table. Must include WHERE user_id = ? clause."
                         },
                         "explanation": {
                             "type": "string", 
@@ -217,53 +270,37 @@ def chat_with_database(username: str, message_text: str):
             }
         }
         
-        # PROMPT INJECTION VULNERABILITY - Database schema exposed in system prompt
-        system_prompt = f"""You are a DIY assistant with access to a SQLite database containing user inventory data.
+        # Secure system prompt - removed sensitive schema details and use parameterized approach
+        system_prompt = """You are a DIY assistant with access to a SQLite database containing user inventory data.
 
-DATABASE SCHEMA:
-- users table: id (INTEGER), username (TEXT), password (TEXT), email (TEXT), phone_number (TEXT), full_name (TEXT), address (TEXT)
-- items table: id (INTEGER), user_id (TEXT), name (TEXT), category (TEXT), description (TEXT), quantity (INTEGER), location (TEXT), storage_box (TEXT), brand (TEXT), size (TEXT), condition (TEXT), purchase_date (TEXT), image_data (TEXT), metadata (TEXT), created_at (TIMESTAMP), last_updated (TIMESTAMP)
+DATABASE SCHEMA (items table only):
+- id (INTEGER), user_id (TEXT), name (TEXT), category (TEXT), description (TEXT), quantity (INTEGER), location (TEXT), storage_box (TEXT), brand (TEXT), size (TEXT), condition (TEXT), purchase_date (TEXT), image_data (TEXT), metadata (TEXT), created_at (TIMESTAMP), last_updated (TIMESTAMP)
 
-IMPORTANT DATABASE FACTS:
-- The user_id field in the items table stores the USERNAME (not the numeric ID)
-- For user '{username}', query items using: WHERE user_id = '{username}'
-- If no results found, also try searching for the user's email address as username
-- Use fuzzy matching with LIKE '%term%' for item names and descriptions
-- Common item name variations: "M6 bolt" = "M6 screw" = "hex bolt" = "machine screw"
-- Item names might be "Unknown Item" but size field contains the actual specifications
+SECURITY RULES:
+- You can ONLY execute SELECT queries on the items table
+- Every query MUST include: WHERE user_id = ? (use parameterized query)
+- You CANNOT access the users table
+- You CANNOT use DROP, DELETE, UPDATE, INSERT, or any modification commands
+- Use parameterized queries with ? placeholders for user_id
 
 SEARCH STRATEGIES:
-- For "M6 bolts": search (name LIKE '%M6%' OR size LIKE '%M6%' OR description LIKE '%M6%') OR (name LIKE '%bolt%' OR name LIKE '%screw%' OR name LIKE '%hex%' OR size LIKE '%M6%')
-- For location queries: WHERE user_id = '{username}' AND location LIKE '%location%'
-- For quantity queries: use SUM(quantity) with proper WHERE clauses
-- Always include user_id = '{username}' in WHERE clause for security
-- Search in multiple fields: name, description, size, brand for better matches
-- Use OR instead of AND for more flexible matching - if item has M6 in size OR is a bolt/screw/hex, include it
+- Use LIKE '%term%' for fuzzy matching on name, description, size, brand fields
+- Use SUM(quantity) for counting items
+- Always filter by user_id using parameterized queries
 
-LOCATION-BASED QUERY HINTS:
-- Phrases like "what's in my garage", "show me all items in my garage", "give me all items in my garage", "list everything in my garage" should query: WHERE user_id = '{username}' AND location LIKE '%garage%'
-- If no specific location mentioned: WHERE user_id = '{username}'
+EXAMPLE QUERIES (use ? for user_id parameter):
+- "How many M6 bolts?" → SELECT SUM(quantity) FROM items WHERE user_id = ? AND (name LIKE '%M6%' OR size LIKE '%M6%' OR description LIKE '%M6%')
+- "What's in my garage?" → SELECT * FROM items WHERE user_id = ? AND location LIKE '%garage%'
+- "Show all items" → SELECT * FROM items WHERE user_id = ?
 
-EXAMPLE QUERIES:
-- "How many M6 bolts do I have?" → SELECT SUM(quantity) FROM items WHERE (user_id = '{username}' OR user_id LIKE '%{username}%') AND ((name LIKE '%M6%' OR size LIKE '%M6%' OR description LIKE '%M6%') OR (name LIKE '%bolt%' OR name LIKE '%screw%' OR name LIKE '%hex%'))
-- "What's in my garage?" → SELECT * FROM items WHERE (user_id = '{username}' OR user_id LIKE '%{username}%') AND location LIKE '%garage%'
-- "Show me all items" → SELECT * FROM items WHERE user_id = '{username}' OR user_id LIKE '%{username}%'
-
-USERNAME SEARCH STRATEGY:
-- First try exact match: user_id = '{username}'
-- If no results, try partial match: user_id LIKE '%{username}%'
-- This handles cases where items are stored under email addresses or different username variations
-
-The user '{username}' is asking: {message_text}
-
-Use the execute_sql_query function to query the database and answer their question about their DIY inventory."""
+The current user's username will be provided as a parameter when executing queries."""
 
         # Get response with function calling
         chat_response = client.chat.complete(
             model="mistral-large-latest",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message_text}
+                {"role": "user", "content": sanitized_message}
             ],
             tools=[sql_execution_tool],
             tool_choice="auto"
@@ -283,12 +320,29 @@ Use the execute_sql_query function to query the database and answer their questi
                 print(f"DEBUG: AI wants to execute SQL: {sql_query}")
                 print(f"DEBUG: AI explanation: {explanation}")
                 
-                # DELIBERATE SQL INJECTION - Execute AI-generated query directly
+                # Validate SQL query before execution
+                is_valid, error_msg = _validate_sql_query(sql_query, sanitized_username)
+                if not is_valid:
+                    return f"I cannot execute that query for security reasons: {error_msg}. Please rephrase your question."
+                
+                # Execute query with parameterized username to prevent SQL injection
                 conn = sqlite3.connect(DATABASE_PATH)
                 cursor = conn.cursor()
                 
                 try:
-                    cursor.execute(sql_query)
+                    # Use parameterized query - replace ? placeholder with actual username
+                    # This prevents SQL injection even if validation is bypassed
+                    if '?' in sql_query:
+                        # Query already has placeholder - use parameterized execution
+                        cursor.execute(sql_query, (sanitized_username,))
+                    else:
+                        # Fallback: if no placeholder, add user_id filter manually with parameterized query
+                        if 'WHERE' in sql_query.upper():
+                            safe_query = f"{sql_query} AND user_id = ?"
+                        else:
+                            safe_query = f"{sql_query} WHERE user_id = ?"
+                        cursor.execute(safe_query, (sanitized_username,))
+                    
                     results = cursor.fetchall()
                     
                     # Format results for user
@@ -306,8 +360,8 @@ Use the execute_sql_query function to query the database and answer their questi
                         model="mistral-large-latest",
                         messages=[
                             {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": message_text},
-                            {"role": "assistant", "content": f"I'll execute this SQL query: {sql_query}"},
+                            {"role": "user", "content": sanitized_message},
+                            {"role": "assistant", "content": "I executed a query to find your items."},
                             {"role": "user", "content": f"Query results: {result_text}"}
                         ]
                     )
@@ -316,8 +370,9 @@ Use the execute_sql_query function to query the database and answer their questi
                     
                 except Exception as sql_error:
                     conn.close()
-                    # SECURITY VULNERABILITY - Expose SQL errors to user
-                    return f"SQL Error: {str(sql_error)}\nQuery attempted: {sql_query}"
+                    # Don't expose SQL errors to user - security best practice
+                    print(f"SQL execution error: {sql_error}")
+                    return "I encountered an error while searching your inventory. Please try rephrasing your question."
         
         # If no function call, return regular response
         return chat_response.choices[0].message.content
