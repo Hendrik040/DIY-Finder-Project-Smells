@@ -7,6 +7,10 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
+import csv
+from io import StringIO
+from fastapi import Response
+import datetime 
 
 from models import UserLogin, UserRegister, ItemCreate, SearchQuery, ChatMessage, AuthResponse, ItemResponse, ChatResponse
 from auth import login_user, register_user
@@ -17,7 +21,11 @@ from utils import process_item_data, chat_with_database, generate_embedding
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize databases on startup and cleanup on shutdown"""
+    """
+    Set up application data infrastructure at startup and provide a hook for shutdown.
+    
+    Creates the data directory if missing and initializes the SQL database and Qdrant vector store before the application starts; yields control to run the app and then allows graceful shutdown handling after the yield.
+    """
     # Startup code - runs when the app starts
     os.makedirs("data", exist_ok=True)
     init_db()
@@ -209,12 +217,69 @@ async def chat(message: ChatMessage):
 
 @app.get("/")
 async def root():
-    """Health check endpoint"""
+    """
+    Return a simple health status message indicating the API is running.
+    
+    Returns:
+        dict: A response containing a "message" field with the health status.
+    """
     return {"message": "DIY Visual Finder API is running"}
+
+@app.get("/api/items/export/{username}")
+async def export_items(username: str, format: str = "csv"):
+    """
+    Export a user's items in CSV or JSON format for download.
+    
+    Parameters:
+    	username (str): Username whose items will be exported.
+    	format (str): Desired export format; case-insensitive, either "csv" or "json". Defaults to "csv".
+    
+    Returns:
+    	Union[dict, fastapi.Response]: If `format` is "json", returns a dict with `"success": True` and the `items` list. If `format` is "csv", returns a `Response` containing CSV bytes with `Content-Disposition` set for attachment download and `media_type` "text/csv".
+    
+    Raises:
+    	fastapi.HTTPException: Raised with status 500 if the retrieved items are not a list, or with status 400 if `format` is unsupported.
+    """
+    print(f"DEBUG: exporting items for user={username}")  
+    exportFormat = format.lower()  
+
+    items = db_get_user_items(username)
+    if not isinstance(items, list):
+        raise HTTPException(status_code=500, detail="Unexpected data shape")
+
+    if exportFormat == "json":
+        # Simple passthrough; clients can download the response body
+        return {"success": True, "items": items}
+
+    elif exportFormat == "csv":
+        # Fixed header for now (predictable CSV); consider schema-driven later
+        fieldnames = [
+            "id", "name", "category", "description", "quantity",
+            "location", "storage_box", "brand", "size", "condition"
+        ]
+
+        # fieldnames = list(items[0].keys()) if items else []
+
+        buf = StringIO()
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        for it in items:
+            writer.writerow({k: it.get(k, "") for k in fieldnames})
+
+        csv_bytes = buf.getvalue().encode("utf-8")
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={username}-inventory.csv"}
+        )
+
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported format; use csv or json")
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
 # Run with: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 
 # For debugging: Remove the if __name__ == "__main__" block
