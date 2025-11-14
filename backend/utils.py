@@ -361,7 +361,7 @@ The current user's username will be provided as a parameter when executing queri
                         messages=[
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": sanitized_message},
-                            {"role": "assistant", "content": f"I executed a query to find your items."},
+                            {"role": "assistant", "content": "I executed a query to find your items."},
                             {"role": "user", "content": f"Query results: {result_text}"}
                         ]
                     )
