@@ -40,11 +40,14 @@ reviews:
     description:
       mode: "error"
     issue_assessment:
-      mode: "warning"
+      mode: "error"
     custom_checks:
       - name: "Undocumented Breaking Changes"
         mode: "warning"
         instructions: "Pass/fail criteria: All breaking changes to public APIs, CLI flags, environment variables, configuration keys, database schemas, or HTTP/GraphQL endpoints must be documented in the Breaking Change section of the PR description and in CHANGELOG.md. Exclude purely internal or private changes (e.g., code not exported from package entry points or explicitly marked as internal)."
+      - name: "Execution of Requirements"
+        mode: "error"
+        instructions: "Pass/fail criteria: Every requirement mentioned in GitHub issues, Jira or Linear tickets, and any linked documentation (including the PR description) must be fully implemented from a functional point of view. All referenced requirements must be addressed in the code, with no omissions."
 
 # Chat configuration
 chat:
