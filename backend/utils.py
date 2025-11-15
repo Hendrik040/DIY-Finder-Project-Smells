@@ -330,18 +330,8 @@ The current user's username will be provided as a parameter when executing queri
                 cursor = conn.cursor()
                 
                 try:
-                    # Use parameterized query - replace ? placeholder with actual username
-                    # This prevents SQL injection even if validation is bypassed
-                    if '?' in sql_query:
-                        # Query already has placeholder - use parameterized execution
-                        cursor.execute(sql_query, (sanitized_username,))
-                    else:
-                        # Fallback: if no placeholder, add user_id filter manually with parameterized query
-                        if 'WHERE' in sql_query.upper():
-                            safe_query = f"{sql_query} AND user_id = ?"
-                        else:
-                            safe_query = f"{sql_query} WHERE user_id = ?"
-                        cursor.execute(safe_query, (sanitized_username,))
+                    # Execute parameterized query (validation ensures ? placeholder exists)
+                    cursor.execute(sql_query, (sanitized_username,))
                     
                     results = cursor.fetchall()
                     
