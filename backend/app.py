@@ -18,6 +18,11 @@ from utils import process_item_data, chat_with_database, generate_embedding
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
+    """
+    Perform application startup tasks and yield control for the app lifespan.
+    
+    Creates the persistent data directory if missing, initializes the SQL database, and initializes the Qdrant vector store before yielding to run the application.
+    """
     os.makedirs("data", exist_ok=True)
     init_db()
     init_qdrant()
