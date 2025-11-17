@@ -17,13 +17,12 @@ from utils import process_item_data, chat_with_database, generate_embedding
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize databases on startup and cleanup on shutdown"""
-    # Startup code - runs when the app starts
+
     os.makedirs("data", exist_ok=True)
     init_db()
     init_qdrant()
     
-    yield  # This separates startup from shutdown
+    yield  
     
 app = FastAPI(title="DIY Visual Finder", version="1.0.0", lifespan=lifespan)
 
