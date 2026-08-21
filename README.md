@@ -99,6 +99,12 @@ pip install -r requirements.txt
 
 # Start the backend server
 python app.py
+
+# For development 
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+# For production 
+uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 #### Frontend Setup
