@@ -13,6 +13,9 @@ A modern web application that helps DIY enthusiasts catalog and search their inv
 
 ## Architecture
 
+
+- test the rabbit
+- 
 ```mermaid
 graph TB
     subgraph "Frontend"
