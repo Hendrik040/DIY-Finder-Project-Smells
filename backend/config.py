@@ -19,3 +19,4 @@ VECTOR_SIZE = 1024
 # Server configuration
 HOST = "0.0.0.0"
 PORT = 8000
+DEBUG = False
